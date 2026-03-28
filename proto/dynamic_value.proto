@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package segment_files;
+
+// A dynamic value that can hold various data types
+// Maps to the Rust DynamicValue enum
+message TTDynamic {
+  oneof value {
+    // Null value - using google.protobuf.NullValue would be better
+    // but for simplicity using a bool flag
+    bool tt_null = 1;
+
+    // 64-bit floating point number
+    double tt_double = 2;
+
+    // 64-bit signed integer
+    int64 tt_long = 3;
+
+    // 32-bit signed integer
+    int32 tt_int = 4;
+
+    // UTF-8 string
+    string tt_string = 5;
+
+    // Boolean value
+    bool tt_bool = 6;
+
+    // Timespan in ticks (100-nanosecond intervals)
+    uint64 tt_timespan = 7;
+
+    // Timestamp in ticks (100-nanosecond intervals)
+    uint64 tt_timestamp = 10;
+
+    // Nested key-value pairs (property bag)
+    TTPropertyBag tt_propertybag = 8;
+
+    // Array of dynamic values
+    TTArray tt_array = 9;
+  }
+}
+
+// Property bag containing key-value pairs
+message TTPropertyBag {
+  map<string, TTDynamic> properties = 1;
+}
+
+// Array of dynamic values
+message TTArray {
+  repeated TTDynamic values = 1;
+}
+
+// A dotted-path scope: a path prefix where dotted keys should be expanded.
+// E.g. ["resource", "attributes"] means keys like "service.name" inside
+// resource.attributes will be expanded into nested structure.
+message DottedPathScope {
+  repeated string path = 1;
+}
+
+// The request to encode a segment file is written like this
+message TTEncodeSegmentRequest {
+  repeated TTPropertyBag values = 1;
+  repeated DottedPathScope shortcuts_for_dotted_paths = 2;
+}
+
+// The returned value is this
+message TTEncodeSegmentResponse {
+  TtStatus status_code = 1;
+  bytes segment_file_data = 2;
+}
+
+enum TtStatus {
+  OK = 0;
+  BadArg = 1;
+  InternalError = 2;
+  InvalidTimeFieldType = 3;
+  MissingTimeField = 4;
+}

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "grpcio-tools>=1.62"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "berserk-client"
+version = "0.1.0"
+description = "Berserk query client for Python"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+grpc = ["grpcio>=1.62", "protobuf>=5.26"]
+http = ["httpx>=0.27"]
+all = ["berserk-client[grpc,http]"]
+
+[project.urls]
+Repository = "https://github.com/berserkdb/berserk-client-python"
+
+[tool.setuptools.packages.find]
+where = ["src"]
