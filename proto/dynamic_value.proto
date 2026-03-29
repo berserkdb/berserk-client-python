@@ -1,77 +1,51 @@
 syntax = "proto3";
 
-package segment_files;
+package berserk;
 
-// A dynamic value that can hold various data types
-// Maps to the Rust DynamicValue enum
-message TTDynamic {
+// A dynamically-typed value that can represent any BQL scalar, array, or property bag.
+// Used as the cell type in query result rows — each cell in a ValueRow is a BqlValue.
+message BqlValue {
   oneof value {
-    // Null value - using google.protobuf.NullValue would be better
-    // but for simplicity using a bool flag
-    bool tt_null = 1;
+    // Null (absent value). The bool payload is always true; the field's presence indicates null.
+    bool null_value = 1;
 
-    // 64-bit floating point number
-    double tt_double = 2;
+    // 64-bit IEEE 754 floating-point number (BQL `real` type).
+    double real_value = 2;
 
-    // 64-bit signed integer
-    int64 tt_long = 3;
+    // 64-bit signed integer (BQL `long` type).
+    int64 long_value = 3;
 
-    // 32-bit signed integer
-    int32 tt_int = 4;
+    // 32-bit signed integer (BQL `int` type).
+    int32 int_value = 4;
 
-    // UTF-8 string
-    string tt_string = 5;
+    // UTF-8 string (BQL `string` type). Also used for `guid` values.
+    string string_value = 5;
 
-    // Boolean value
-    bool tt_bool = 6;
+    // Boolean (BQL `bool` type).
+    bool bool_value = 6;
 
-    // Timespan in ticks (100-nanosecond intervals)
-    uint64 tt_timespan = 7;
+    // Duration in ticks — each tick is 100 nanoseconds (BQL `timespan` type).
+    uint64 timespan_value = 7;
 
-    // Timestamp in ticks (100-nanosecond intervals)
-    uint64 tt_timestamp = 10;
+    // Timestamp in ticks since 0001-01-01T00:00:00Z — each tick is 100 nanoseconds (BQL `datetime` type).
+    uint64 datetime_value = 10;
 
-    // Nested key-value pairs (property bag)
-    TTPropertyBag tt_propertybag = 8;
+    // Nested key-value map (BQL `dynamic` property bag).
+    PropertyBag bag_value = 8;
 
-    // Array of dynamic values
-    TTArray tt_array = 9;
+    // Ordered list of dynamic values (BQL `dynamic` array).
+    Array array_value = 9;
   }
 }
 
-// Property bag containing key-value pairs
-message TTPropertyBag {
-  map<string, TTDynamic> properties = 1;
+// An unordered map of string keys to dynamic values.
+// Represents the property-bag variant of BQL's `dynamic` type.
+message PropertyBag {
+  map<string, BqlValue> properties = 1;
 }
 
-// Array of dynamic values
-message TTArray {
-  repeated TTDynamic values = 1;
-}
-
-// A dotted-path scope: a path prefix where dotted keys should be expanded.
-// E.g. ["resource", "attributes"] means keys like "service.name" inside
-// resource.attributes will be expanded into nested structure.
-message DottedPathScope {
-  repeated string path = 1;
-}
-
-// The request to encode a segment file is written like this
-message TTEncodeSegmentRequest {
-  repeated TTPropertyBag values = 1;
-  repeated DottedPathScope shortcuts_for_dotted_paths = 2;
-}
-
-// The returned value is this
-message TTEncodeSegmentResponse {
-  TtStatus status_code = 1;
-  bytes segment_file_data = 2;
-}
-
-enum TtStatus {
-  OK = 0;
-  BadArg = 1;
-  InternalError = 2;
-  InvalidTimeFieldType = 3;
-  MissingTimeField = 4;
+// An ordered list of dynamic values.
+// Represents the array variant of BQL's `dynamic` type.
+message Array {
+  repeated BqlValue values = 1;
 }

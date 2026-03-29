@@ -166,26 +166,26 @@ class GrpcClient:
 
 
 def _convert_value(dyn) -> Value:
-    """Convert a proto TTDynamic to a Python value."""
+    """Convert a proto BqlValue to a Python value."""
     which = dyn.WhichOneof("value")
-    if which is None or which == "tt_null":
+    if which is None or which == "null_value":
         return None
-    if which == "tt_bool":
-        return dyn.tt_bool
-    if which == "tt_int":
-        return dyn.tt_int
-    if which == "tt_long":
-        return dyn.tt_long
-    if which == "tt_double":
-        return dyn.tt_double
-    if which == "tt_string":
-        return dyn.tt_string
-    if which == "tt_timestamp":
-        return dyn.tt_timestamp
-    if which == "tt_timespan":
-        return dyn.tt_timespan
-    if which == "tt_array":
-        return [_convert_value(v) for v in dyn.tt_array.values]
-    if which == "tt_propertybag":
-        return {k: _convert_value(v) for k, v in dyn.tt_propertybag.properties.items()}
+    if which == "bool_value":
+        return dyn.bool_value
+    if which == "int_value":
+        return dyn.int_value
+    if which == "long_value":
+        return dyn.long_value
+    if which == "real_value":
+        return dyn.real_value
+    if which == "string_value":
+        return dyn.string_value
+    if which == "datetime_value":
+        return dyn.datetime_value
+    if which == "timespan_value":
+        return dyn.timespan_value
+    if which == "array_value":
+        return [_convert_value(v) for v in dyn.array_value.values]
+    if which == "bag_value":
+        return {k: _convert_value(v) for k, v in dyn.bag_value.properties.items()}
     return None

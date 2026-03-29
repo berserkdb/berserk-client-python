@@ -4,65 +4,89 @@ package query;
 
 import "dynamic_value.proto";
 
+// The query service executes BQL queries and streams results back to the client.
 service QueryService {
+  // Execute a BQL query and receive results as a stream of typed frames.
+  // The stream delivers Schema, RowBatch, Progress, and Metadata frames,
+  // terminated by a Completion frame or an Error frame.
   rpc ExecuteQuery(ExecuteQueryRequest) returns (stream ExecuteQueryResultFrame);
-  // TODO: Plan endpoint
 }
 
+// Request to execute a BQL query.
 message ExecuteQueryRequest {
+  // The BQL query string to execute.
   string query = 1;
 
+  // Start of the time range (inclusive). Accepts relative expressions like "1h ago"
+  // or absolute timestamps like "2024-01-01T00:00:00Z".
   string since = 2;
+
+  // End of the time range (exclusive). Same format as `since`. Defaults to now.
   string until = 3;
+
+  // IANA timezone name for time-based operations (e.g., "America/New_York").
+  // Defaults to UTC if not specified.
   string timezone = 4;
 }
 
-// A single frame in the stream of results for a query.
+// A single frame in the streaming response for a query.
+// Frames arrive in order: Schema frames first, then interleaved RowBatch and Progress frames,
+// and finally a Completion or Error frame.
 message ExecuteQueryResultFrame {
+  // Unique identifier for this request, echoed from the server.
   string request_id = 1;
+
   oneof payload {
-    // TableSchema contains the schema of one table in the results and will always be
-    // sent before the associated RowBatches.
+    // Table schema — sent once per table before any RowBatch frames for that table.
     TableSchema schema = 2;
-    // RowBatch contains the rows. Note that each RowBatch belongs to a result iteration
-    // and for every new result iteration, the old set of RowBatches should be discarded.
-    // We need this setup of a result set of multiple rowbatches to avoid hitting the 4MB
-    // limit in gRPC messages.
+
+    // A batch of result rows. Multiple batches may arrive for the same table and iteration.
+    // When `result_iteration_id` changes, discard all previous rows and start fresh.
     RowBatch batch = 3;
 
-    // If done is sent, then this stream can be closed and no more events will be sent.
-    // TODO: We need to be able to signal that a result iteration is done. We should use completion for that.
+    // Signals that the query has completed and no more frames will be sent.
     Completion done = 5;
 
-
-    /// Aux events for progress, etc.
-    // progress contains the progress since the last progress was sent.
+    // Cumulative execution statistics. Sent periodically during query execution.
+    // Each Progress frame supersedes the previous one.
     Progress progress = 4;
-    // error indicates that some error happened that impacted the result set.
+
+    // A query execution error. The stream ends after this frame.
     Error error = 6;
-    // metadata carries warnings or partial failures for the current result set.
+
+    // Warnings, partial failures, and visualization hints for the current result set.
     ResultMetadata metadata = 7;
-    // TODO: Add healthcheck frame
   }
 }
 
+// Schema definition for a result table.
 message TableSchema {
+  // Table name (e.g., "PrimaryResult", "ExtraTable_0", or a fork branch name).
   string name = 1;
+
+  // Ordered list of columns in this table.
   repeated Column columns = 2;
 }
 
+// A column definition within a table schema.
 message Column {
+  // Column name.
   string name = 1;
+
+  // Data type of the column.
   ColumnType type = 2;
+
+  // Whether the column may contain null values.
   bool nullable = 3;
 }
 
+// BQL data types for column definitions.
 enum ColumnType {
   COLUMN_TYPE_UNSPECIFIED = 0;
   COLUMN_TYPE_BOOL = 1;
-  COLUMN_TYPE_INT32 = 2;
-  COLUMN_TYPE_INT64 = 3;
-  COLUMN_TYPE_DOUBLE = 4;
+  COLUMN_TYPE_INT = 2;
+  COLUMN_TYPE_LONG = 3;
+  COLUMN_TYPE_REAL = 4;
   COLUMN_TYPE_STRING = 5;
   COLUMN_TYPE_DATETIME = 6;
   COLUMN_TYPE_TIMESPAN = 7;
@@ -70,120 +94,176 @@ enum ColumnType {
   COLUMN_TYPE_DYNAMIC = 9;
 }
 
+// A batch of rows belonging to a single table and result iteration.
 message RowBatch {
-  // table_name referes to the name of the table as specified in a QueryTableSchema.
+  // Name of the table this batch belongs to (matches a TableSchema.name).
   string table_name = 1;
-  // result_iteration_id is an opaque string that identifies a specific result iteration.
-  // Whenever a new result iteration starts, all previous rows should be discarded. Thus
-  // a result iteration is a complete set of rows for a query.
+
+  // Opaque identifier for the current result iteration. When this value changes,
+  // all previously received rows for all tables must be discarded — the new iteration
+  // represents a more complete result set that supersedes the previous one.
   string result_iteration_id = 2;
-  // ValueRow contains rows in this batch.
+
+  // Rows in this batch. Column order matches the TableSchema for this table.
   repeated ValueRow rows = 3;
-  // True when this is the last batch for this result_iteration_id.
-  // UI should only render complete iterations (where is_iteration_complete=true),
-  // except for the first batch which can be shown immediately for fast feedback.
+
+  // True when this is the last batch for this table in the current iteration.
+  // Clients should show the first batch immediately for fast feedback, then
+  // accumulate subsequent batches until this flag is true.
   bool is_iteration_complete = 4;
 }
 
+// A single row of dynamically-typed values.
 message ValueRow {
-  // Values contains the values for this row. The order of values matches the order of columns
-  // in the QueryTableSchema for the table this row belongs to.
-  repeated segment_files.TTDynamic values = 1;
+  // Cell values in column order. Each value corresponds to the column at the same
+  // index in the TableSchema.
+  repeated berserk.BqlValue values = 1;
 }
 
+// Cumulative execution statistics for the running query.
+// Each Progress frame contains the total counts since the query started —
+// always use the latest frame and discard earlier ones.
 message Progress {
-  // Execution statistics
+  // Total rows processed across all chunks.
   uint64 rows_processed = 1;
+
+  // Total number of chunks in the query's time range.
   uint64 chunks_total = 2;
+
+  // Chunks that were scanned (read and evaluated).
   uint64 chunks_scanned = 3;
+
+  // Chunks skipped because their time range didn't overlap the query range.
   uint64 chunks_skipped_range = 4;
+
+  // Chunks skipped by bloom filter (no matching values).
   uint64 chunks_skipped_bloom = 5;
-  uint64 chunks_skipped_shar = 6;
+
+  // Chunks skipped by shard hash (not matching the target shard).
+  uint64 chunks_skipped_shard = 6;
+
+  // Total predicate evaluations performed during scanning.
   uint64 predicate_checks = 7;
-  // Field 8 removed (was bloom_checks - dead code)
+
+  reserved 8;
+  reserved "bloom_checks";
+
+  // True when the query completed early via short-circuit optimization.
   bool short_circuit_completion = 9;
+
+  // Total uncompressed bytes of scanned chunk bodies.
   uint64 chunk_scanned_raw_body_size = 10;
+
+  // Total uncompressed bytes of skipped chunk bodies.
   uint64 chunk_skipped_raw_body_size = 11;
+
+  // Total compressed bytes of skipped chunks.
   uint64 chunk_skipped_compressed_size = 12;
+
+  // Wall-clock time spent scanning chunks (nanoseconds).
   uint64 chunk_scan_time_nanos = 13;
+
+  // Total query execution time (nanoseconds).
   uint64 query_time_nanos = 14;
+
+  // Total compressed bytes of scanned chunks.
   uint64 chunk_scanned_compressed_size = 15;
-  // Bin progress for queries using bin() on numeric or time fields
+
+  // Per-bin completion progress for `summarize ... by bin()` queries.
   optional BinProgress bin_progress = 16;
-  // Time spent waiting in queue before execution started (nanoseconds).
+
+  // Time spent waiting in the query queue before execution started (nanoseconds).
   // Present when the query was queued due to concurrent query limits.
   optional uint64 queue_wait_nanos = 17;
-  // Planning progress during segment processing phase.
-  // Present during planning, None after planning completes.
+
+  // Segment planning progress. Present during planning, absent after planning completes.
   optional PlanningProgress planning_progress = 18;
-  // Total bytes of BLOM chunks evaluated during bloom filtering.
+
+  // Total bytes of bloom filter data evaluated during bloom filtering.
   uint64 bloom_filter_bytes = 19;
-  // Wall-clock time spent in merge+delivery across all query threads (nanoseconds).
+
+  // Wall-clock time spent in merge and delivery across all query threads (nanoseconds).
   uint64 merge_time_nanos = 20;
-  // Chunks scanned that yielded zero rows passing filters (false positives from pre-filtering).
+
+  // Chunks that were scanned but yielded zero matching rows (false positives from pre-filtering).
   uint64 chunks_empty_scan = 21;
-  // Chunks that passed pre-filters but failed during row processing (e.g. type conversion error).
+
+  // Chunks that encountered errors during row processing (e.g., type conversion failure).
   uint64 chunks_errored = 22;
-  // Chunks skipped because required input fields were absent from the chunk.
+
+  // Chunks skipped because required input fields were absent from the chunk schema.
   uint64 chunks_skipped_required_fields = 23;
-  // Extended per-operator diagnostics in a stable key/value envelope.
+
+  // Per-operator diagnostic telemetry in a stable key-value envelope.
   repeated OperatorDiagnostics operator_diagnostics = 24;
 }
 
+// Diagnostic telemetry for a specific query operator.
 message OperatorDiagnostics {
+  // Operator kind (e.g., "summarize", "join").
   string kind = 1;
+
+  // Operator ID within the query plan.
   uint32 operator_id = 2;
+
+  // Key-value diagnostic entries.
   repeated KeyValue values = 3;
 }
 
+// A string key-value pair.
 message KeyValue {
   string key = 1;
   string value = 2;
 }
 
-// Progress information for the planning phase.
-// During planning, workers process segments (loading MIMX, applying filters,
-// computing chunk/slice overlaps). This tracks that progress.
+// Segment planning progress.
 message PlanningProgress {
-  // Number of segments that have completed planning across all workers.
+  // Number of segments that have completed planning.
   uint64 segments_done = 1;
-  // Total number of segments to process across all workers.
+
+  // Total number of segments to plan.
   uint64 segments_total = 2;
 }
 
-// Progress information for bin() aggregations.
-// Reports completion progress per bin for queries using `summarize ... by bin(field, span)`.
+// Per-bin completion progress for `summarize ... by bin()` queries.
 message BinProgress {
-  // Start value of the first bin (the bin boundary).
-  // Bin N covers range [first_bin_start + N * bin_span, first_bin_start + (N+1) * bin_span)
+  // Start value of the first bin boundary.
+  // Bin N covers [first_bin_start + N * bin_span, first_bin_start + (N+1) * bin_span).
   sint64 first_bin_start = 1;
-  // Span (width) of each bin.
+
+  // Width of each bin.
   uint64 bin_span = 2;
-  // Completion percentage (0-100) for each bin.
-  // Index i corresponds to bin i. Value 100 means all workers have reported.
+
+  // Completion percentage (0-100) for each bin, one byte per bin.
+  // Index i corresponds to bin i. Value 100 means fully scanned.
   bytes completion_percentages = 3;
 }
 
-message Completion {
-  // Empty marker to signal query completion
-}
+// Signals that the query has completed successfully.
+message Completion {}
 
+// A query execution error.
 message Error {
-  // Error code - discriminator for error_details (e.g., "UnknownFunction", "TypeMismatch")
+  // Error code discriminator (e.g., "UnknownFunction", "TypeMismatch").
   string code = 1;
-  // Brief title
+
+  // Brief error title.
   string title = 2;
-  // Support ticket ID for tracking
+
+  // Support ticket ID for tracking.
   string support_ticket_id = 4;
-  // Pre-rendered error message with span annotations (for simple clients)
+
+  // Human-readable error message with source annotations.
   string message = 5;
-  // Source location
+
+  // Source code location where the error occurred.
   Location location = 7;
-  // JSON-encoded error details (actual KustoError for reconstruction)
+
+  // Structured error details as JSON.
   string details = 8;
 }
 
-// Source code location
+// A range within the query source text.
 message Location {
   uint32 start_byte = 1;
   uint32 end_byte = 2;
@@ -193,38 +273,53 @@ message Location {
   uint32 end_column = 6;
 }
 
+// A partial failure for one or more segments that could not be read.
 message PartialFailure {
+  // IDs of the affected segments.
   repeated string segment_ids = 1;
+
+  // Human-readable error description.
   string message = 2;
 }
 
-// Visualization metadata from render operator
+// Visualization metadata from the `render` operator.
 message VisualizationMetadata {
-  // Visualization type: "table", "timechart", "linechart", etc.
+  // Visualization type (e.g., "table", "timechart", "piechart", "linechart").
   optional string visualization_type = 1;
+
+  // Visualization properties (e.g., x-column, y-columns, legend).
   map<string, string> properties = 2;
 }
 
+// Metadata for the current result set.
 message ResultMetadata {
+  // Segments that could not be read (partial data loss).
   repeated PartialFailure partial_failures = 1;
-  // Visualization metadata from render operator (if present)
+
+  // Visualization hints from the `render` operator, if present.
   optional VisualizationMetadata visualization = 2;
-  // Execution warnings (limits hit, etc.)
+
+  // Execution warnings (e.g., "summarize memory limit reached", "result truncated").
   repeated QueryWarning warnings = 3;
 }
 
-// Warning produced during query execution (e.g., limit was hit).
+// A warning produced during query execution.
 message QueryWarning {
-  // Operator ID for source correlation
+  // Operator ID for source correlation.
   uint32 operator_id = 1;
-  // Branch index for fork queries (0 = not a fork)
+
+  // Branch index for fork queries (0 = main branch).
   optional uint32 branch_index = 2;
-  // Warning kind discriminator (e.g., "SummarizeMemoryLimit")
+
+  // Warning kind discriminator (e.g., "SummarizeMemoryLimit", "ResultTruncated").
   string kind = 3;
-  // Source location (resolved from span registry)
+
+  // Source location where the warning originated.
   optional Location location = 4;
-  // Human-readable message
+
+  // Human-readable warning message.
   string message = 5;
-  // Structured details as JSON
+
+  // Structured warning details as JSON.
   string details = 6;
 }
