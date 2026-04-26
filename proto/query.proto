@@ -196,6 +196,10 @@ message Progress {
 
   // Per-operator diagnostic telemetry in a stable key-value envelope.
   repeated OperatorDiagnostics operator_diagnostics = 24;
+
+  // Chunks scanned where the range predicate could not be resolved at chunk level and
+  // required per-row evaluation (i.e., the hoisted range did not fully cover the chunk).
+  uint64 chunks_range_per_row = 25;
 }
 
 // Diagnostic telemetry for a specific query operator.
