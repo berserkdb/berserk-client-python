@@ -200,6 +200,17 @@ message Progress {
   // Chunks scanned where the range predicate could not be resolved at chunk level and
   // required per-row evaluation (i.e., the hoisted range did not fully cover the chunk).
   uint64 chunks_range_per_row = 25;
+
+  // Number of merge+delivery invocations summed across all query threads.
+  // Pair counter for `merge_time_nanos`.
+  uint64 merge_count = 26;
+
+  // Wall-clock time spent cloning reducer state during merge invocations
+  // (nanoseconds, summed across all threads).
+  uint64 reducer_clone_time_nanos = 27;
+
+  // Number of reducer-state clones recorded into `reducer_clone_time_nanos`.
+  uint64 reducer_clone_count = 28;
 }
 
 // Diagnostic telemetry for a specific query operator.
