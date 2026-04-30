@@ -211,6 +211,15 @@ message Progress {
 
   // Number of reducer-state clones recorded into `reducer_clone_time_nanos`.
   uint64 reducer_clone_count = 28;
+
+  // Cumulative wall-clock time the coordinator spent building intermediate
+  // streaming snapshots (excludes the final result build). Nanoseconds.
+  uint64 snapshot_build_time_nanos = 29;
+
+  // Number of intermediate snapshot builds counted into
+  // `snapshot_build_time_nanos`. Pair counter; consumers can compute the
+  // average build duration that drives adaptive snapshot pacing.
+  uint64 snapshot_build_count = 30;
 }
 
 // Diagnostic telemetry for a specific query operator.
