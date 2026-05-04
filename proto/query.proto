@@ -4,6 +4,7 @@ package query;
 
 import "dynamic_value.proto";
 
+
 // The query service executes BQL queries and streams results back to the client.
 service QueryService {
   // Execute a BQL query and receive results as a stream of typed frames.
@@ -78,6 +79,50 @@ message Column {
 
   // Whether the column may contain null values.
   bool nullable = 3;
+
+  // Berserk extension. Optional structural type for `dynamic` columns
+  // when the engine knows the inner shape (e.g. an `Array<Real>`
+  // produced by `make-series`, or an `Object{...}` produced by
+  // `bag_pack`). Absent means "opaque dynamic, infer by convention"
+  // — the same shape ADX returns. Clients that don't know this
+  // field ignore it (proto3 unknown-field tolerance) and continue
+  // operating against a plain `dynamic` column type.
+  optional StructuralType structural_type = 4;
+}
+
+// Structural type information for a `dynamic` column. Recursive
+// because dynamics can be arrays of objects, objects with array
+// fields, etc. Mirrors the engine-internal `AnnotationType` ADT.
+message StructuralType {
+  oneof kind {
+    // Element is a scalar of the given type. The outer `Column.type`
+    // is `dynamic`; this `scalar` carries the inner type.
+    ColumnType scalar = 1;
+
+    // Element is a homogeneous array of the given inner shape.
+    // E.g. `make-series s = sum(v) on t step 5s` produces:
+    //   - `s`: array_elem = scalar(LONG)   — array of longs
+    //   - `t`: array_elem = scalar(DATETIME) — array of datetimes
+    StructuralType array_elem = 2;
+
+    // Element is an object (property bag) with named fields. Each
+    // field carries its own structural type. E.g. `series_decompose`
+    // returns `{baseline, seasonal, trend, residual}` each of which
+    // is an array of reals.
+    ObjectSchema object = 3;
+  }
+}
+
+// Object schema for a `dynamic` column whose inner shape is a
+// property bag with known named fields.
+message ObjectSchema {
+  repeated ObjectField fields = 1;
+}
+
+// One named field within an `ObjectSchema`.
+message ObjectField {
+  string name = 1;
+  StructuralType type = 2;
 }
 
 // BQL data types for column definitions.
