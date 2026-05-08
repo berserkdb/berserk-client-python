@@ -265,6 +265,24 @@ message Progress {
   // `snapshot_build_time_nanos`. Pair counter; consumers can compute the
   // average build duration that drives adaptive snapshot pacing.
   uint64 snapshot_build_count = 30;
+
+  // Sum of thread CPU time spent inside the chunks arm of
+  // `query_thread_loop` (nanoseconds, across all worker threads). Pair
+  // with the chunks-arm wall (`worker_processing_time_nanos` engine-side):
+  // wall ≫ CPU implies threads are parked on I/O / mutexes /
+  // oversubscription; wall ≈ CPU implies CPU is the bottleneck.
+  uint64 worker_chunks_arm_cpu_nanos = 31;
+
+  // Sum of wall-clock time worker threads spent inside
+  // `reader.fetch_chunk_data().await` — i.e. the cache_server fetch path
+  // for chunk bytes. Nanoseconds, across all worker threads.
+  uint64 worker_fetching_chunk_nanos = 32;
+
+  // Sum of wall-clock time inside the synchronous chunk-body closure
+  // (decompression + per-row scan + branch accounting). Nanoseconds,
+  // across all worker threads. Pair with `worker_fetching_chunk_nanos`
+  // to split chunk-arm wall into I/O wait vs scan body.
+  uint64 worker_chunk_body_nanos = 33;
 }
 
 // Diagnostic telemetry for a specific query operator.
