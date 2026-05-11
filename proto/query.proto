@@ -283,6 +283,14 @@ message Progress {
   // across all worker threads. Pair with `worker_fetching_chunk_nanos`
   // to split chunk-arm wall into I/O wait vs scan body.
   uint64 worker_chunk_body_nanos = 33;
+
+  // Generic counter bag (`CustomStats` from #2830). Lets engine emit
+  // new measurements without a proto schema change for each one.
+  // Keys are dotted lowercase namespaces — `bloom.short_circuit_chunks`,
+  // `storage.bytes_fetched_cold`, `predicate.<i>.rows_kept`. Values are
+  // sums across all worker threads; the coordinator merges per-key
+  // before serializing.
+  map<string, uint64> custom_stats = 34;
 }
 
 // Diagnostic telemetry for a specific query operator.
