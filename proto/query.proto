@@ -4,6 +4,7 @@ package query;
 
 import "dynamic_value.proto";
 
+option go_package = "github.com/berserkdb/berserk-client-go/proto/querypb";
 
 // The query service executes BQL queries and streams results back to the client.
 service QueryService {
@@ -291,6 +292,20 @@ message Progress {
   // sums across all worker threads; the coordinator merges per-key
   // before serializing.
   map<string, uint64> custom_stats = 34;
+
+  // Cumulative cache-layer S3 retries observed answering this query.
+  // Surfaced by `SegmentCacheTrait::fetch_stats_snapshot`; the
+  // cache_server reports per-`OpenedItem` retries from its bounded
+  // `get_cache_handle_inner` loop and the client tallies them on the
+  // session. Non-zero is normal under flaky-backend conditions; a
+  // sustained delta says the backend is the bottleneck.
+  uint64 s3_retries_total = 35;
+
+  // Cumulative cache-layer S3 give-ups for this query — one per cache
+  // open that hit the bounded retry deadline or returned a
+  // non-retriable error. Each give-up typically corresponds to a
+  // PartialFailure for the segment it was trying to open.
+  uint64 s3_giveups_total = 36;
 }
 
 // Diagnostic telemetry for a specific query operator.
