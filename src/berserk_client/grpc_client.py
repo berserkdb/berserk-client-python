@@ -37,8 +37,13 @@ def _load_stubs():
     #   python -m grpc_tools.protoc -Iproto --python_out=src/berserk_client/_pb \
     #     --grpc_python_out=src/berserk_client/_pb proto/*.proto
     # For now, use proto reflection / dynamic stubs
-    from berserk_client._pb import query_pb2, query_pb2_grpc, dynamic_value_pb2
-    return query_pb2, query_pb2_grpc, dynamic_value_pb2
+    from berserk_client._pb import (
+        common_api_pb2,
+        dynamic_value_pb2,
+        query_pb2,
+        query_pb2_grpc,
+    )
+    return query_pb2, query_pb2_grpc, dynamic_value_pb2, common_api_pb2
 
 
 class GrpcClient:
@@ -62,7 +67,7 @@ class GrpcClient:
         timezone: str = "UTC",
     ) -> QueryResponse:
         """Execute a query and collect all results."""
-        query_pb2, query_pb2_grpc, _ = _load_stubs()
+        query_pb2, query_pb2_grpc, _, common_api_pb2 = _load_stubs()
 
         channel = await self._get_channel()
         stub = query_pb2_grpc.QueryServiceStub(channel)
@@ -78,6 +83,7 @@ class GrpcClient:
             since=since or "",
             until=until or "",
             timezone=timezone,
+            database=common_api_pb2.DatabaseRef(name=self.config.database or "default"),
         )
 
         tables: list[Table] = []
