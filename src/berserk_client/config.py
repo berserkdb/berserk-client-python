@@ -22,6 +22,10 @@ class Config:
     client_name: str = "berserk-client-python"
     """Client name sent as x-bzrk-client-name header."""
 
+    database: str = "default"
+    """Database to resolve unqualified table names against. Sent on every
+    ExecuteQueryRequest as `database.name`."""
+
     def normalized_endpoint(self) -> str:
         """Ensure endpoint has a scheme prefix."""
         if self.endpoint.startswith(("http://", "https://")):

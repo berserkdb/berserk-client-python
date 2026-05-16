@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package query;
 
+import "common_api.proto";
 import "dynamic_value.proto";
 
 option go_package = "github.com/berserkdb/berserk-client-go/proto/querypb";
@@ -29,6 +30,13 @@ message ExecuteQueryRequest {
   // IANA timezone name for time-based operations (e.g., "America/New_York").
   // Defaults to UTC if not specified.
   string timezone = 4;
+
+  // Database to resolve unqualified table names against. Required.
+  // Callers may send either a UUID (`identifier.id`) or a name
+  // (`identifier.name`); the server resolves names once per request via
+  // the metadata service. Empty / unset oneof rejected with
+  // `InvalidArgument`.
+  berserk.DatabaseRef database = 5;
 }
 
 // A single frame in the streaming response for a query.
