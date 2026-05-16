@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package berserk;
+
+
+// Wire-format identifier for a database. Callers send either the UUID
+// (`id`) or the human-readable `name`. The server resolves `name` to an
+// id once per request via the metadata service. Empty oneof / empty
+// strings are rejected with `InvalidArgument` at every boundary that
+// accepts a `DatabaseRef`.
+message DatabaseRef {
+  oneof identifier {
+    string id = 1;
+    string name = 2;
+  }
+}
