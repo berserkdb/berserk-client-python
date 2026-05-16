@@ -13,7 +13,7 @@ GRPC_TARGET = ENDPOINT.replace("http://", "").replace("https://", "")
 HTTP_TARGET = ENDPOINT if ENDPOINT.startswith("http") else f"http://{ENDPOINT}"
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "berserk_client", "_pb"))
-import grpc, grpc.aio, query_pb2, query_pb2_grpc, httpx
+import grpc, grpc.aio, common_api_pb2, query_pb2, query_pb2_grpc, httpx
 
 passed = failed = 0
 
@@ -27,7 +27,7 @@ async def run(name, fn):
 async def grpc_simple_query():
     async with grpc.aio.insecure_channel(GRPC_TARGET) as ch:
         stub = query_pb2_grpc.QueryServiceStub(ch)
-        req = query_pb2.ExecuteQueryRequest(query="print v = 1", timezone="UTC")
+        req = query_pb2.ExecuteQueryRequest(query="print v = 1", timezone="UTC", database=common_api_pb2.DatabaseRef(name="default"))
         schemas, batches = [], []
         async for f in stub.ExecuteQuery(req, timeout=30):
             p = f.WhichOneof("payload")
@@ -39,7 +39,7 @@ async def grpc_simple_query():
 async def grpc_invalid_query():
     async with grpc.aio.insecure_channel(GRPC_TARGET) as ch:
         stub = query_pb2_grpc.QueryServiceStub(ch)
-        req = query_pb2.ExecuteQueryRequest(query="not valid!!!", timezone="UTC")
+        req = query_pb2.ExecuteQueryRequest(query="not valid!!!", timezone="UTC", database=common_api_pb2.DatabaseRef(name="default"))
         got_error = False
         try:
             async for f in stub.ExecuteQuery(req, timeout=30):
@@ -50,7 +50,7 @@ async def grpc_invalid_query():
 async def grpc_multi_column():
     async with grpc.aio.insecure_channel(GRPC_TARGET) as ch:
         stub = query_pb2_grpc.QueryServiceStub(ch)
-        req = query_pb2.ExecuteQueryRequest(query='print a = 1, b = "hello", c = true', timezone="UTC")
+        req = query_pb2.ExecuteQueryRequest(query='print a = 1, b = "hello", c = true', timezone="UTC", database=common_api_pb2.DatabaseRef(name="default"))
         schemas = []
         async for f in stub.ExecuteQuery(req, timeout=30):
             if f.WhichOneof("payload") == "schema": schemas.append(f.schema)
