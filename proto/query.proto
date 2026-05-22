@@ -355,6 +355,17 @@ message BinProgress {
   // Completion percentage (0-100) for each bin, one byte per bin.
   // Index i corresponds to bin i. Value 100 means fully scanned.
   bytes completion_percentages = 3;
+
+  // Overall completion percentage (0-100), weighted by per-slice
+  // segment overlap counts: sum(segments_done_per_slice) /
+  // sum(segments_total_per_slice). Larger slices (more overlapping
+  // segments) contribute proportionally more than small slices, which
+  // matches actual work better than a flat arithmetic mean — nursery
+  // segments are tiny while QWS segments are large, so a slice that
+  // overlaps 1000 segments deserves more weight than one that overlaps 5.
+  // Absent when the coordinator has not received any segment
+  // overlap totals (older workers, non-sliced execution).
+  optional uint32 overall_percent = 4;
 }
 
 // Signals that the query has completed successfully.
