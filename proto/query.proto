@@ -345,6 +345,9 @@ message PlanningProgress {
 
 // Per-bin completion progress for `summarize ... by bin()` queries.
 message BinProgress {
+  reserved 4;
+  reserved "overall_percent";
+
   // Start value of the first bin boundary.
   // Bin N covers [first_bin_start + N * bin_span, first_bin_start + (N+1) * bin_span).
   sint64 first_bin_start = 1;
@@ -356,16 +359,19 @@ message BinProgress {
   // Index i corresponds to bin i. Value 100 means fully scanned.
   bytes completion_percentages = 3;
 
-  // Overall completion percentage (0-100), weighted by per-slice
-  // segment overlap counts: sum(segments_done_per_slice) /
-  // sum(segments_total_per_slice). Larger slices (more overlapping
-  // segments) contribute proportionally more than small slices, which
-  // matches actual work better than a flat arithmetic mean — nursery
-  // segments are tiny while QWS segments are large, so a slice that
-  // overlaps 1000 segments deserves more weight than one that overlaps 5.
-  // Absent when the coordinator has not received any segment
-  // overlap totals (older workers, non-sliced execution).
-  optional uint32 overall_percent = 4;
+  // Numerator of overall completion: sum across slices of the number of
+  // segments whose planning has finished. Paired with overall_total to
+  // form the segment-weighted overall progress — larger slices (more
+  // overlapping segments) contribute proportionally more than small
+  // slices, which matches actual work better than a flat arithmetic mean
+  // across the per-bin bars. Both zero when no segment totals are known
+  // yet (initial planning still running).
+  uint64 overall_done = 5;
+
+  // Denominator of overall completion: sum across slices of the total
+  // segments overlapping that slice. Zero when unknown — clients should
+  // treat (0, 0) as "no overall percentage available yet".
+  uint64 overall_total = 6;
 }
 
 // Signals that the query has completed successfully.
