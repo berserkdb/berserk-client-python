@@ -314,6 +314,18 @@ message Progress {
   // non-retriable error. Each give-up typically corresponds to a
   // PartialFailure for the segment it was trying to open.
   uint64 s3_giveups_total = 36;
+
+  // Map-reduce-state cache: how many slices were seeded from cache
+  // this run. Non-zero means at least one interior slice was reused
+  // from a prior captured entry. Zero for unsliced queries, cold
+  // queries, and queries where the cache is disabled / not eligible.
+  uint64 map_reduce_state_cache_slices_reused = 37;
+
+  // Map-reduce-state cache: total slices in the coordinator's slicing
+  // grid for this run. Pair with `_slices_reused` for the per-run
+  // reuse fraction. Zero means the cache was never consulted (not
+  // sliced, no cache wired, or not a cacheable single branch).
+  uint64 map_reduce_state_cache_slices_total = 38;
 }
 
 // Diagnostic telemetry for a specific query operator.
