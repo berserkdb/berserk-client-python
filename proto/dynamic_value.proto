@@ -25,12 +25,9 @@ message BqlValue {
     // Boolean (BQL `bool` type).
     bool bool_value = 6;
 
-    // LEGACY unsigned timespan (BQL `timespan` type), ticks of 100ns. Acts as
-    // the oneof discriminant for timespan cells and carries the value for old
-    // readers; writers clamp negatives to 0, so it's correct only for
-    // non-negative timespans. New readers prefer the signed `timespan_value`
-    // (tag 11). Remove once all clients have migrated.
-    uint64 timespan_value_unsigned = 7;
+    // Duration in ticks — each tick is 100 nanoseconds (BQL `timespan` type).
+    // Signed: negatives arise from datetime subtraction / `timespan(-1s)`.
+    sint64 timespan_value = 7;
 
     // Timestamp in ticks since 0001-01-01T00:00:00Z — each tick is 100 nanoseconds (BQL `datetime` type).
     uint64 datetime_value = 10;
@@ -41,14 +38,6 @@ message BqlValue {
     // Ordered list of dynamic values (BQL `dynamic` array).
     Array array_value = 9;
   }
-
-  // Signed timespan ticks — the canonical timespan value. Set by writers
-  // whenever the cell is a timespan (the unsigned oneof field can't carry
-  // negatives from datetime subtraction / `timespan(-1s)`). New readers prefer
-  // this when present; old readers ignore it and fall back to the clamped
-  // `timespan_value_unsigned`. Once all clients read this, the unsigned field
-  // (tag 7) can be dropped.
-  optional sint64 timespan_value = 11;
 }
 
 // An unordered map of string keys to dynamic values.
