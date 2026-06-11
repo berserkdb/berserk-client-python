@@ -1,26 +1,30 @@
 """Client configuration."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
 class Config:
-    """Configuration for connecting to a Berserk query service."""
+    """Configuration for connecting to a Berserk gateway."""
 
-    endpoint: str = "http://localhost:9510"
-    """Query service endpoint."""
+    endpoint: str = "http://localhost:9500"
+    """Gateway endpoint (e.g., "https://berserk.example.com"). An https
+    endpoint uses TLS channel credentials."""
 
-    username: str | None = None
-    """Username sent as x-bzrk-username header."""
+    token: str | None = None
+    """Bearer token sent as `authorization` on every call — a CLI access
+    token or service-principal token minted by the gateway.
+    Unauthenticated calls are rejected by the gateway."""
+
+    grpc_path_prefix: str = "/api/grpc"
+    """Path prefix the gateway mounts the gRPC surface under. Set to ""
+    when connecting directly to a query service (in-cluster / dev)."""
 
     timeout: float = 30.0
     """Maximum time for a complete request (seconds)."""
 
     connect_timeout: float = 10.0
     """Connection timeout (seconds)."""
-
-    client_name: str = "berserk-client-python"
-    """Client name sent as x-bzrk-client-name header."""
 
     database: str = "default"
     """Database to resolve unqualified table names against. Sent on every
@@ -39,3 +43,7 @@ class Config:
             if ep.startswith(prefix):
                 ep = ep[len(prefix):]
         return ep
+
+    def is_tls(self) -> bool:
+        """True when the endpoint requires TLS."""
+        return self.endpoint.startswith("https://")

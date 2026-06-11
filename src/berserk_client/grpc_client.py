@@ -46,8 +46,30 @@ def _load_stubs():
     return query_pb2, query_pb2_grpc, dynamic_value_pb2, common_api_pb2
 
 
+class _GatewayInterceptor(grpc.aio.UnaryStreamClientInterceptor):
+    """Rewrites method paths onto the gateway's gRPC mount (e.g.
+    /api/grpc/query.QueryService/ExecuteQuery) and attaches the bearer
+    token. The gateway authenticates the call and injects the trusted
+    identity headers before forwarding."""
+
+    def __init__(self, path_prefix: str, token: str | None) -> None:
+        self._prefix = path_prefix.encode()
+        self._token = token
+
+    async def intercept_unary_stream(self, continuation, client_call_details, request):
+        method = client_call_details.method
+        if self._prefix:
+            m = method if isinstance(method, (bytes, bytearray)) else method.encode()
+            method = self._prefix + bytes(m)
+        metadata = list(client_call_details.metadata or [])
+        if self._token:
+            metadata.append(("authorization", f"Bearer {self._token}"))
+        details = client_call_details._replace(method=method, metadata=metadata)
+        return await continuation(details, request)
+
+
 class GrpcClient:
-    """gRPC client for querying the Berserk query service."""
+    """gRPC client for querying through the Berserk gateway."""
 
     def __init__(self, config: Config | None = None) -> None:
         self.config = config or Config()
@@ -56,7 +78,15 @@ class GrpcClient:
     async def _get_channel(self) -> grpc.aio.Channel:
         if self._channel is None:
             target = self.config.grpc_target()
-            self._channel = grpc.aio.insecure_channel(target)
+            interceptors = [
+                _GatewayInterceptor(self.config.grpc_path_prefix, self.config.token)
+            ]
+            if self.config.is_tls():
+                self._channel = grpc.aio.secure_channel(
+                    target, grpc.ssl_channel_credentials(), interceptors=interceptors
+                )
+            else:
+                self._channel = grpc.aio.insecure_channel(target, interceptors=interceptors)
         return self._channel
 
     async def query(
@@ -71,12 +101,6 @@ class GrpcClient:
 
         channel = await self._get_channel()
         stub = query_pb2_grpc.QueryServiceStub(channel)
-
-        metadata = []
-        if self.config.username:
-            metadata.append(("x-bzrk-username", self.config.username))
-        if self.config.client_name:
-            metadata.append(("x-bzrk-client-name", self.config.client_name))
 
         request = query_pb2.ExecuteQueryRequest(
             query=query,
@@ -96,7 +120,6 @@ class GrpcClient:
 
         stream = stub.ExecuteQuery(
             request,
-            metadata=metadata,
             timeout=self.config.timeout,
         )
 

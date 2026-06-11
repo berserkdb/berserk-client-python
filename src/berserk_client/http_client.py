@@ -41,10 +41,8 @@ class HttpClient:
         url = f"{endpoint}/v2/rest/query"
 
         headers: dict[str, str] = {}
-        if self.config.username:
-            headers["x-bzrk-username"] = self.config.username
-        if self.config.client_name:
-            headers["x-bzrk-client-name"] = self.config.client_name
+        if self.config.token:
+            headers["Authorization"] = f"Bearer {self.config.token}"
 
         body = {"db": self.config.database, "csl": query}
         resp = await self._client.post(url, json=body, headers=headers)

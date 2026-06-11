@@ -2,9 +2,9 @@
 decodes through the real GrpcClient against a live cluster — one `print`
 query produces a column per value type, and each decoded cell is asserted.
 
-Set BERSERK_ENDPOINT to a *direct* query-service endpoint (e.g.
-query.bzrk.svc.cluster.local:9510). The packaged client has no gateway
-auth support, so the authenticated edge won't work here.
+Set BERSERK_ENDPOINT to the gateway (e.g. localhost:9500) and
+BERSERK_TOKEN to a CLI bearer token. To run directly against a query
+service instead, set BERSERK_GRPC_PREFIX="".
 """
 import asyncio, os, sys
 
@@ -81,7 +81,12 @@ def check(name, fn):
 
 async def main():
     global failed
-    client = GrpcClient(Config(endpoint=ENDPOINT))
+    config = Config(endpoint=ENDPOINT)
+    if "BERSERK_TOKEN" in os.environ:
+        config.token = os.environ["BERSERK_TOKEN"]
+    if "BERSERK_GRPC_PREFIX" in os.environ:
+        config.grpc_path_prefix = os.environ["BERSERK_GRPC_PREFIX"]
+    client = GrpcClient(config)
     try:
         response = await client.query(QUERY)
         table = next((t for t in response.tables if t.name == "PrimaryResult"), response.tables[0])
