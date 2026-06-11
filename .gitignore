@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+# Generated proto stubs — regenerate with:
+#   python -m grpc_tools.protoc -Iproto --python_out=src/berserk_client/_pb --grpc_python_out=src/berserk_client/_pb proto/*.proto
+src/berserk_client/_pb/

@@ -46,7 +46,8 @@ class HttpClient:
         if self.config.client_name:
             headers["x-bzrk-client-name"] = self.config.client_name
 
-        resp = await self._client.post(url, json={"csl": query}, headers=headers)
+        body = {"db": self.config.database, "csl": query}
+        resp = await self._client.post(url, json=body, headers=headers)
         resp.raise_for_status()
 
         frames = resp.json()
