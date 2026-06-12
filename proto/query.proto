@@ -37,6 +37,14 @@ message ExecuteQueryRequest {
   // the metadata service. Empty / unset oneof rejected with
   // `InvalidArgument`.
   berserk.DatabaseRef database = 5;
+
+  // INTERNAL — QCS→QC relay only. Set by the query supervisor when
+  // relaying to a spawned per-query coordinator child over its private
+  // UDS; the public endpoint rejects requests that set any of them.
+  optional sint64 now_unix_nanos = 6;
+  optional sint64 time_range_start_nanos = 7;
+  optional sint64 time_range_end_nanos = 8;
+  optional bytes qws_members = 9;
 }
 
 // A single frame in the streaming response for a query.
@@ -67,6 +75,11 @@ message ExecuteQueryResultFrame {
     // Warnings, partial failures, and visualization hints for the current result set.
     ResultMetadata metadata = 7;
   }
+
+  // INTERNAL — QCS→QC relay only. Postcard authoritative engine
+  // metadata so the supervisor reconstructs spawned-query results
+  // byte-exact. Never set on the public endpoint; clients ignore it.
+  optional bytes internal_sidecar = 8;
 }
 
 // Schema definition for a result table.
