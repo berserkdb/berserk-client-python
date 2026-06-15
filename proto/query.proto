@@ -45,6 +45,20 @@ message ExecuteQueryRequest {
   optional sint64 time_range_start_nanos = 7;
   optional sint64 time_range_end_nanos = 8;
   optional bytes qws_members = 9;
+
+  // Ingest-time window (the slicing axis), independent of `since`/`until`
+  // (which bound event time). Same format as `since`/`until`. When set it
+  // restricts `ingest_time` and combines with any in-query
+  // `where ingest_time > ago(..)` bound (tighter wins). Optional on both ends.
+  string ingest_since = 10;
+  string ingest_until = 11;
+
+  // INTERNAL — QCS→QC relay only, the ingest-window counterpart of
+  // `time_range_start_nanos`/`end_nanos`: the captured, resolved ingest window
+  // so the child does not re-parse `ingest_since`/`ingest_until`. Both set or
+  // both unset.
+  optional sint64 ingest_time_range_start_nanos = 12;
+  optional sint64 ingest_time_range_end_nanos = 13;
 }
 
 // A single frame in the streaming response for a query.
