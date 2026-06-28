@@ -13,68 +13,7 @@ service QueryService {
   // The stream delivers Schema, RowBatch, Progress, and Metadata frames,
   // terminated by a Completion frame or an Error frame.
   rpc ExecuteQuery(ExecuteQueryRequest) returns (stream ExecuteQueryResultFrame);
-
-  // Admin: evict the query service's on-disk caches (segment cache and/or
-  // map-reduce-state cache). Built to support repeatable performance
-  // benchmarking — clearing caches between runs gives a cold baseline.
-  //
-  // MULTI-REPLICA: the query service is a StatefulSet with 2+ replicas,
-  // each with its own PVC-backed cache. A gateway-routed call lands on a
-  // single replica and only evicts that replica's caches. For full
-  // cluster coverage, call repeatedly or target a specific pod.
-  rpc EvictCache(EvictCacheRequest) returns (EvictCacheResponse);
 }
-
-// Request to evict the query service's on-disk caches. Cluster-admin only.
-message EvictCacheRequest {
-  // Evict everything in the selected caches, scoped to `database` (+
-  // `tables`). When true, `since`/`until` are ignored — `--all` means "all
-  // time for this database/table", not "all databases".
-  bool all = 1;
-
-  // Scope segment-cache eviction to entries overlapping this interval
-  // (RFC3339, absolute date, or relative `"1h ago"`). A request with
-  // `all=false` and neither bound set is rejected.
-  string since = 2;
-  string until = 3;
-
-  // Which caches to evict. When neither is set (both false) the server
-  // treats it as "both" — the ergonomic default for the CLI.
-  bool segment_cache = 4;
-  bool mr_state_cache = 5;
-
-  // Database (by name) whose cached segments are eligible for eviction.
-  // Required: eviction is always database-scoped.
-  string database = 6;
-
-  // Optional table names within `database` to scope eviction to. Empty =
-  // every table in the database.
-  repeated string tables = 7;
-}
-
-// Per-cache eviction result counts.
-message EvictCacheResponse {
-  // Segment cache: cache files (objects) evicted and their on-disk bytes.
-  // Zero when the segment cache was not selected or not present (e.g. the
-  // replica runs in remote-cache transport mode with no in-process cache).
-  uint64 segment_cache_objects_evicted = 1;
-  uint64 segment_cache_bytes_evicted = 2;
-
-  // Map-reduce-state cache: entries evicted and their on-disk bytes. Zero
-  // when not selected or the cache is disabled by config.
-  uint64 mr_state_cache_entries_evicted = 3;
-  uint64 mr_state_cache_bytes_evicted = 4;
-
-  // True when the segment cache was selected but this replica has no
-  // in-process segment cache (remote-cache transport mode) — the caller
-  // can distinguish "nothing to evict" from "not evictable here".
-  bool segment_cache_unavailable = 5;
-
-  // True when the map-reduce-state cache was selected but disabled by
-  // config on this replica.
-  bool mr_state_cache_unavailable = 6;
-}
-
 // Request to execute a BQL query.
 message ExecuteQueryRequest {
   // The BQL query string to execute.
