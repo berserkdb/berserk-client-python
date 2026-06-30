@@ -383,6 +383,26 @@ message Progress {
   // reuse fraction. Zero means the cache was never consulted (not
   // sliced, no cache wired, or not a cacheable single branch).
   uint64 map_reduce_state_cache_slices_total = 38;
+
+  // Opinionated query performance quality score, recomputed on every
+  // snapshot. Absent until the coordinator attaches it.
+  optional QueryQuality quality = 39;
+}
+
+// Query performance quality score. Every field is [0;1] with 1.0 = good;
+// clients render as a percentage or however they like. See
+// docs/dev/query-quality-score.md.
+message QueryQuality {
+  // Headline = scanning * transformation * aggregation.
+  float total = 1;
+  // How well bloom/range/shard filters let us skip load+decompress.
+  float scanning = 2;
+  // Per-row mapper work; 1.0 = no transforms.
+  float transformation = 3;
+  // Reducer weight; 1.0 = light/bounded.
+  float aggregation = 4;
+  // Blend weight: 0 = pure plan estimate, 1 = pure live-stats measure.
+  float measured = 5;
 }
 
 // Diagnostic telemetry for a specific query operator.
