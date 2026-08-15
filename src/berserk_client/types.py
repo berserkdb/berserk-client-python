@@ -53,7 +53,7 @@ class QueryWarning:
 
 @dataclass
 class PartialFailure:
-    segment_ids: list[str] = field(default_factory=list)
+    segment_count: int = 0
     message: str = ""
 
 

@@ -14,6 +14,7 @@ service QueryService {
   // terminated by a Completion frame or an Error frame.
   rpc ExecuteQuery(ExecuteQueryRequest) returns (stream ExecuteQueryResultFrame);
 }
+
 // Request to execute a BQL query.
 message ExecuteQueryRequest {
   // The BQL query string to execute.
@@ -499,11 +500,19 @@ message Location {
 
 // A partial failure for one or more segments that could not be read.
 message PartialFailure {
-  // IDs of the affected segments.
-  repeated string segment_ids = 1;
+  // OBSOLETE — always empty, never populated. Segment ids are internal
+  // storage identifiers no client can act on; only the node holding the
+  // segments needs them, and it logs them locally against the query's
+  // trace id. The field stays in the schema so existing generated clients
+  // keep compiling; read `segment_count` instead.
+  repeated string segment_ids = 1 [deprecated = true];
 
   // Human-readable error description.
   string message = 2;
+
+  // How many segments this failure covers — enough to judge how much of
+  // the result is missing.
+  uint64 segment_count = 3;
 }
 
 // Visualization metadata from the `render` operator.
@@ -517,13 +526,20 @@ message VisualizationMetadata {
 
 // Metadata for the current result set.
 message ResultMetadata {
-  // Segments that could not be read (partial data loss).
+  // Data is MISSING from the result: rows the query should have covered were
+  // not read (unreachable segments, an unavailable stream group, a lost
+  // worker, a deadline cut). Consumers must treat the result as incomplete —
+  // the completeness watermark and result caching are suppressed whenever any
+  // entry is present. Contrast with `warnings`.
   repeated PartialFailure partial_failures = 1;
 
   // Visualization hints from the `render` operator, if present.
   optional VisualizationMetadata visualization = 2;
 
-  // Execution warnings (e.g., "summarize memory limit reached", "result truncated").
+  // Advisory only: the result is COMPLETE, but how the query ran deserves
+  // attention (e.g. "summarize memory limit reached", "result truncated",
+  // planner fallbacks). Anything that implies missing rows belongs in
+  // `partial_failures`, never here.
   repeated QueryWarning warnings = 3;
 }
 

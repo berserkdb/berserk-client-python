@@ -162,7 +162,7 @@ class GrpcClient:
                 m = frame.metadata
                 for pf in m.partial_failures:
                     partial_failures.append(
-                        PartialFailure(segment_ids=list(pf.segment_ids), message=pf.message)
+                        PartialFailure(segment_count=pf.segment_count, message=pf.message)
                     )
                 for w in m.warnings:
                     warnings.append(QueryWarning(kind=w.kind, message=w.message))
